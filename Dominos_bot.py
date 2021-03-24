@@ -2,8 +2,10 @@ from selenium import webdriver
 from selenium.webdriver.support.ui import Select
 import json
 import time
+import sys
 
 TIME_DELAY = 1
+
 
 def coupon_gathering(driver):
     time.sleep(TIME_DELAY)
@@ -17,18 +19,17 @@ def coupon_gathering(driver):
             code_text = driver.find_element_by_xpath(
                 "//*[@id='js-pageSplit']/section/div[2]/div/div[3]/div[" + str(i) + "]/a/div[4]/p").text
 
-            code_text = int(code_text[-5:-1])
+            code_number = int(code_text[-5:-1])
             description = code_text[:-13]
-            coupons_dict[code_text] = description
+            coupons_dict[code_number] = description
             found_codes.append(code_text)
             found_codes.sort()
     except:
         pass
 
+    # Test every possible code
     code = driver.find_element_by_name('Coupon_Code')
-    #Test every possible code
-    code = driver.find_element_by_name('Coupon_Code')
-    for i in range(1000, 10000):
+    for i in range(1500, 10000):
 
         # if the code we are testing is already in the dictionary skip it
         if i in coupons_dict:
@@ -36,23 +37,34 @@ def coupon_gathering(driver):
 
         # Send the code we are testing
         try:
-            if i < 10: code.send_keys("000"+str(i))
-            elif i < 100: code.send_keys("00" + str(i))
-            elif i < 1000: code.send_keys("0" + str(i))
-            else: code.send_keys(str(i))
+            if i < 10:
+                code.send_keys("000" + str(i))
+                print("Testing code 000" + str(i))
+            elif i < 100:
+                code.send_keys("00" + str(i))
+                print("Testing code 00" + str(i))
+            elif i < 1000:
+                code.send_keys("0" + str(i))
+                print("Testing code 0" + str(i))
+            else:
+                code.send_keys(str(i))
+                print("Testing code " + str(i))
 
             # Click on the button
             driver.find_element_by_xpath("//*[@id='js-pageSplit']/section/div[2]/div/div[1]/form/div/button").click()
             time.sleep(TIME_DELAY)
             # Get the text from the pop up
             coupon_pop_up = driver.find_element_by_xpath("//*[@id='genericOverlay']/section/header/h1").text
+            time.sleep(TIME_DELAY)
 
             if coupon_pop_up == 'COUPON NOT AVAILABLE':
                 driver.find_element_by_xpath("//*[@id='genericOverlay']/section/header/button").click()
             else:
+                # if the coupon is found put it in the dictionary
                 coupon_desc = driver.find_element_by_xpath("//*[@id='genericOverlay']/section/div/div[2]/div[1]/p").text
                 coupons_dict[code] = coupon_desc
                 driver.find_element_by_xpath("//*[@id='genericOverlay']/section/div/div[6]/div/a").click()
+            # Remove the coupon code from the input box
             code.clear()
         except:
             print("ERROR")
@@ -109,12 +121,13 @@ def bot_start_up(city: 'str', postal_code: 'str', province: 'str'):
     driver = webdriver.Chrome()
     # Open the website
     driver.get('https://www.dominos.ca/en/pages/order/#!/locations/search/')
+    time.sleep(TIME_DELAY)
 
     # click on the carryout button
     element = driver.find_element_by_xpath("//*[@id='Service_Type_Carryout']")
     driver.execute_script("arguments[0].click();", element)
 
-    #Select on your closest dominos
+    # Select on your closest dominos
     dom_select(driver, city, postal_code, province)
 
     # Get the coupons
