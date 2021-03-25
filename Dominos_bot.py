@@ -1,18 +1,29 @@
 from selenium import webdriver
 from selenium.webdriver.support.ui import Select
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
 import json
 import time
 import sys
 
+# Globals
 TIME_DELAY = 1
+coupons_dict = dict()
+LOWER = 0
+UPPER = 9999
 
+# test working code 8509
 
-def coupon_gathering(driver):
-    time.sleep(TIME_DELAY)
+def scrap_public_codes(driver):
+    """
+    Gets the coupon data from the ones publicly available on the website
+    :param driver: The web driver
+    :return: NULL
+    """
 
     # Get the public local coupons
-    coupons_dict = dict()
-    found_codes = list()
     try:
         for i in range(1, 20):
             # Grab the public coupons and parse the data and put them in a dict
@@ -22,14 +33,24 @@ def coupon_gathering(driver):
             code_number = int(code_text[-5:-1])
             description = code_text[:-13]
             coupons_dict[code_number] = description
-            found_codes.append(code_text)
-            found_codes.sort()
     except:
         pass
 
-    # Test every possible code
-    code = driver.find_element_by_name('Coupon_Code')
-    for i in range(1500, 10000):
+
+def test_code_range(driver, lower, upper):
+    """
+    Tests all the codes in a given range on the already open dominos page
+    :param driver: The web driver
+    :param lower: Your starting range for your coupon search
+    :param upper: The end of your coupon search
+    :post: Adds all the found codes to the coupon dictionary
+    :return: NULL
+    """
+    wait = WebDriverWait(driver, 10)
+
+    for i in range(lower, upper+1):
+        wait.until(EC.element_to_be_clickable((By.XPATH, '//*[@id="Coupon_Code"]')))
+        code = driver.find_element_by_name('Coupon_Code')
 
         # if the code we are testing is already in the dictionary skip it
         if i in coupons_dict:
@@ -51,32 +72,70 @@ def coupon_gathering(driver):
                 print("Testing code " + str(i))
 
             # Click on the button
+            wait.until(EC.element_to_be_clickable(
+                (By.XPATH, "//*[@id='js-pageSplit']/section/div[2]/div/div[1]/form/div/button")))
             driver.find_element_by_xpath("//*[@id='js-pageSplit']/section/div[2]/div/div[1]/form/div/button").click()
-            time.sleep(TIME_DELAY)
+
             # Get the text from the pop up
+            wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='genericOverlay']/section/header/h1")))
             coupon_pop_up = driver.find_element_by_xpath("//*[@id='genericOverlay']/section/header/h1").text
-            time.sleep(TIME_DELAY)
 
             if coupon_pop_up == 'COUPON NOT AVAILABLE':
+                # Close the COUPON NOT AVAILABLE pop up
+                wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='genericOverlay']/section/header/button")))
                 driver.find_element_by_xpath("//*[@id='genericOverlay']/section/header/button").click()
+                # Remove the coupon code from the input box
+                code.clear()
+
             else:
                 # if the coupon is found put it in the dictionary
+                wait.until(
+                    EC.element_to_be_clickable((By.XPATH, "//*[@id='genericOverlay']/section/div/div[2]/div[1]/p")))
                 coupon_desc = driver.find_element_by_xpath("//*[@id='genericOverlay']/section/div/div[2]/div[1]/p").text
-                coupons_dict[code] = coupon_desc
+                coupons_dict[i] = coupon_desc
+                print("NEW CODE FOUND: " + str(i) + " " + coupons_dict[i])
+
+                # Wait until we can close the coupon pop up then close the pop up
+                wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='genericOverlay']/section/div/div[6]/div/a")))
                 driver.find_element_by_xpath("//*[@id='genericOverlay']/section/div/div[6]/div/a").click()
-            # Remove the coupon code from the input box
-            code.clear()
+                time.sleep(TIME_DELAY*3)
         except:
             print("ERROR")
             break
 
+
+def file_loader(file):
+    """
+    Given a file load the file into the coupon_dict and start your search from there and end at the upper bound
+    :param file: The name of the file in string form
+    :postcond: Modifies the coupon_dict
+    :return: NULL
+    """
+    with open(f'{file}.json', 'r') as openfile:
+        # Reading from json file
+        coupons_dict = json.load(openfile)
+
+    global LOWER
+    LOWER = int(list(coupons_dict)[-1])
+
+
+def coupon_gathering(driver):
+    time.sleep(TIME_DELAY)
+
+    # Get the public local coupons
+    scrap_public_codes(driver)
+
+    # Test all codes based on the given range
+    test_code_range(driver, LOWER, UPPER)
+
     # Testing only
     for key in coupons_dict:
         print("Code: " + str(key) + " " + coupons_dict[key])
-    print(found_codes)
 
-    # with open("sample.json", "w") as outfile:
-    #     json.dump(coupons_dict, outfile)
+    with open("coupon.json", "w") as outfile:
+        json.dump(coupons_dict, outfile,indent=2)
+
+    driver.close()
 
 
 def dom_select(driver, city: 'str', postal_code: 'str', province: 'str'):
@@ -89,6 +148,8 @@ def dom_select(driver, city: 'str', postal_code: 'str', province: 'str'):
     :param province: Your province'
     :return: nothing
     """
+    wait = WebDriverWait(driver, 10)
+
     # Select and send the location info
     city_box = driver.find_element_by_name('City')
     city_box.send_keys(city)
@@ -100,9 +161,8 @@ def dom_select(driver, city: 'str', postal_code: 'str', province: 'str'):
     driver.execute_script("arguments[0].click();", location_button)
 
     # click on the nearest dominos
-    time.sleep(TIME_DELAY)
-    nearest_doms = driver.find_element_by_xpath(
-        "//*[@id='locationsResultsPage']/div[2]/div[2]/div[1]/div[3]/div/div[2]/div/a")
+    wait.until(EC.element_to_be_clickable((By.XPATH, "//*[@id='locationsResultsPage']/div[2]/div[2]/div[1]/div[3]/div/div[2]/div/a")))
+    nearest_doms = driver.find_element_by_xpath("//*[@id='locationsResultsPage']/div[2]/div[2]/div[1]/div[3]/div/div[2]/div/a")
     driver.execute_script("arguments[0].click();", nearest_doms)
 
     # Select the coupon tab
@@ -112,6 +172,13 @@ def dom_select(driver, city: 'str', postal_code: 'str', province: 'str'):
 
 
 def bot_start_up(city: 'str', postal_code: 'str', province: 'str'):
+    """
+    Starts the bot up
+    :param city: Name of the city your a located in
+    :param postal_code: Your postal_code
+    :param province: Your province'
+    :return: nothing
+    """
     # Check that the parameters of the correct data type
     assert type(city) is str, "City be a string"
     assert type(city) is str, "Postal code needs to be a string"
@@ -135,6 +202,15 @@ def bot_start_up(city: 'str', postal_code: 'str', province: 'str'):
 
 
 if __name__ == "__main__":
+
+    # Set the coupon Range search
+    LOWER = int(input("Enter the start of the coupon search: "))
+    UPPER = int(input("Enter the end of the coupon search: "))
+
+    # Ask if we want to load a file
+    file_dump = input("Do you want to start your search from a file? (Y/N) ")
+    if file_dump == 'y' or file_dump == 'Y':
+        file_loader(input("What is the name of your file? "))
+
     bot_start_up("Saskatoon", "S7N 0Y7", "Saskatchewan")
-    while (True):
-        pass
+
