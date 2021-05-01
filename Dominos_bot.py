@@ -166,9 +166,9 @@ def dom_select(driver, city: 'str', postal_code: 'str', province: 'str'):
 
     # click on the nearest dominos
     wait.until(EC.element_to_be_clickable(
-        (By.XPATH, "//*[@id='locationsResultsPage']/div[2]/div[2]/div[1]/div[3]/div/div[2]/div/a")))
+        (By.XPATH, "/html/body/div[2]/div[3]/div/div/div/div[2]/div[1]/div[3]/div/div[2]/div[1]/a")))
     nearest_doms = driver.find_element_by_xpath(
-        "//*[@id='locationsResultsPage']/div[2]/div[2]/div[1]/div[3]/div/div[2]/div/a")
+        "/html/body/div[2]/div[3]/div/div/div/div[2]/div[1]/div[3]/div/div[2]/div[1]/a")
     driver.execute_script("arguments[0].click();", nearest_doms)
 
     # Select the coupon tab
